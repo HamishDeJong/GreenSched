@@ -20,3 +20,7 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+#define SYS_kps    22
+#define SYS_sleep  23
+#define SYS_setgreenmode  24
+#define SYS_getgreenmode  25

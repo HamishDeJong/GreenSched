@@ -17,6 +17,9 @@ struct pipe {
   uint nwrite;    // number of bytes written
   int readopen;   // read fd is still open
   int writeopen;  // write fd is still open
+
+  volatile int flag[2]; // flag for peterson
+  volatile int turn;
 };
 
 int
@@ -78,26 +81,43 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
 {
   int i = 0;
   struct proc *pr = myproc();
+  int self = 0;  // write
+  int other = 1; // read
 
-  acquire(&pi->lock);
   while(i < n){
-    if(pi->readopen == 0 || killed(pr)){
-      release(&pi->lock);
+
+    // Peterson ENTRY
+    pi->flag[self] = 1;
+    pi->turn = other;
+    while(pi->flag[other] && pi->turn == other)
+      ;
+
+    // ----- CRITICAL SECTION -----
+
+    if(pi->nwrite == pi->nread + PIPESIZE){
+      // buffer full
+      pi->flag[self] = 0;
+      continue;   // retry
+    }
+
+    if(pi->readopen == 0 || killed(pr)){ // pipe is full
+      pi->flag[self] = 0;
       return -1;
     }
-    if(pi->nwrite == pi->nread + PIPESIZE){ //DOC: pipewrite-full
-      wakeup(&pi->nread);
-      sleep(&pi->nwrite, &pi->lock);
-    } else {
-      char ch;
-      if(copyin(pr->pagetable, &ch, addr + i, 1) == -1)
-        break;
-      pi->data[pi->nwrite++ % PIPESIZE] = ch;
-      i++;
+
+    char ch;
+    if(copyin(pr->pagetable, &ch, addr + i, 1) == -1){
+      pi->flag[self] = 0;
+      break;
     }
+
+    pi->data[pi->nwrite % PIPESIZE] = ch;
+    pi->nwrite++;
+    i++;
+
+    // EXIT
+    pi->flag[self] = 0;
   }
-  wakeup(&pi->nread);
-  release(&pi->lock);
 
   return i;
 }
@@ -108,27 +128,121 @@ piperead(struct pipe *pi, uint64 addr, int n)
   int i;
   struct proc *pr = myproc();
   char ch;
+  int self = 1; // read
+  int other = 0; // write
 
-  acquire(&pi->lock);
-  while(pi->nread == pi->nwrite && pi->writeopen){  //DOC: pipe-empty
-    if(killed(pr)){
-      release(&pi->lock);
+  for(i = 0; i < n; ){
+
+    // Peterson ENTRY
+    pi->flag[self] = 1;
+    pi->turn = other;
+    while(pi->flag[other] && pi->turn == other)
+      ;
+
+    // ----- CRITICAL SECTION -----
+
+    if(pi->nread == pi->nwrite){ // pipe is empty
+      if(pi->writeopen == 0){
+        pi->flag[self] = 0;
+        break;    // EOF
+      }
+      pi->flag[self] = 0;
+      continue;   // buffer empty, retry
+    }
+
+    ch = pi->data[pi->nread % PIPESIZE];
+
+    if(copyout(pr->pagetable, addr + i, &ch, 1) == -1){
+      pi->flag[self] = 0;
       return -1;
     }
-    sleep(&pi->nread, &pi->lock); //DOC: piperead-sleep
-  }
-  for(i = 0; i < n; i++){  //DOC: piperead-copy
-    if(pi->nread == pi->nwrite)
-      break;
-    ch = pi->data[pi->nread % PIPESIZE];
-    if(copyout(pr->pagetable, addr + i, &ch, 1) == -1) {
-      if(i == 0)
-        i = -1;
-      break;
-    }
+
     pi->nread++;
+    i++;
+
+    // EXIT
+    pi->flag[self] = 0;
   }
-  wakeup(&pi->nwrite);  //DOC: piperead-wakeup
-  release(&pi->lock);
+
   return i;
 }
+
+
+
+// int
+// pipewrite(struct pipe *pi, uint64 addr, int n)
+// {
+//   int i = 0;
+//   struct proc *pr = myproc();
+//   int self = 0;
+//   int other = 1;
+
+//   pi->flag[self] = 1;
+//   pi->turn = other;
+//   while(pi->flag[other] && pi->turn == other)
+//   ;
+//   acquire(&pi->lock);
+//   while(i < n){
+//     if(pi->readopen == 0 || killed(pr)){
+//       pi->flag[self] = 0;
+//       release(&pi->lock);
+//       return -1;
+//     }
+//     if(pi->nwrite == pi->nread + PIPESIZE){ //DOC: pipewrite-full
+//       wakeup(&pi->nread);
+//       sleep(&pi->nwrite, &pi->lock);
+//     } else {
+//       char ch;
+//       if(copyin(pr->pagetable, &ch, addr + i, 1) == -1)
+//         break;
+//       pi->data[pi->nwrite++ % PIPESIZE] = ch;
+//       i++;
+//     }
+//   }
+//   release(&pi->lock);
+//   wakeup(&pi->nread);
+//   pi->flag[self] = 0;
+
+//   return i;
+// }
+
+// int
+// piperead(struct pipe *pi, uint64 addr, int n)
+// {
+//   int i;
+//   struct proc *pr = myproc();
+//   char ch;
+
+//     int self = 1;
+//     int other = 0;
+
+//     pi->flag[self] = 1;
+//     pi->turn = other;
+//     while(pi->flag[other] && pi->turn == other)
+//     ;
+//   acquire(&pi->lock);
+//   while(pi->nread == pi->nwrite && pi->writeopen){  //DOC: pipe-empty
+//     if(killed(pr)){
+//       release(&pi->lock);
+//       pi->flag[self] = 0;
+//       return -1;
+//     }
+//     sleep(&pi->nread, &pi->lock); //DOC: piperead-sleep
+//   }
+//   for(i = 0; i < n; i++){  //DOC: piperead-copy
+//     if(pi->nread == pi->nwrite)
+//       break;
+//     ch = pi->data[pi->nread % PIPESIZE];
+//     if(copyout(pr->pagetable, addr + i, &ch, 1) == -1) {
+//       if(i == 0)
+//         i = -1;
+//       break;
+//     }
+//     pi->nread++;
+//   }
+//   release(&pi->lock);
+//   wakeup(&pi->nwrite);  //DOC: piperead-wakeup
+//   pi->flag[self] = 0;
+//   return i;
+// }
+

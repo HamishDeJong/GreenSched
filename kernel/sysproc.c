@@ -107,3 +107,65 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+//read from trap frame using argstr(…) into a string variable and pass that on to the system call.
+uint64
+ sys_kps(void)
+ {
+  char buf[4];
+
+  if(argstr(0, buf, sizeof(buf)) < 0)
+    return -1;
+
+ return kps(buf);
+ }
+
+// sleep call
+uint64
+sys_sleep(void)
+{
+  int n;
+  uint ticks0;
+
+  // get argument from user
+  argint(0, &n);
+
+  acquire(&tickslock);
+  ticks0 = ticks;
+
+  while(ticks - ticks0 < n){
+    if(killed(myproc())){
+      release(&tickslock);
+      return -1;
+    }
+    sleep(&ticks, &tickslock);
+  }
+
+  release(&tickslock);
+  return 0;
+}
+
+
+
+// Global mode variable 
+int greenmode = 0;
+
+// temp filler function
+uint64
+sys_setgreenmode(void)
+{
+  int mode;
+  argint(0, &mode);
+
+  // Optional: validate mode
+  if(mode < 0 || mode > 1)
+    return -1;
+
+  greenmode = mode;
+  return 0;
+}
+
+uint64
+sys_getgreenmode(void)
+{
+  return greenmode;
+}

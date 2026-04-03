@@ -28,7 +28,10 @@ OBJS = \
   $K/sysfile.o \
   $K/kernelvec.o \
   $K/plic.o \
-  $K/virtio_disk.o
+  $K/virtio_disk.o \
+  $K/energy_accounting.o \
+  $K/greensched.o \
+  $K/idle_state.o 
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
@@ -145,9 +148,18 @@ UPROGS=\
 	$U/_logstress\
 	$U/_forphan\
 	$U/_dorphan\
+	$U/_hello_world\
+	$U/_ps\
+	$U/_bad_pipe\
+	$U/_schedtest\
+	$U/_good_pipe\
+	$U/_greenbench\
+	$U/_greenmode\
 
-fs.img: mkfs/mkfs README $(UPROGS)
-	mkfs/mkfs fs.img README $(UPROGS)
+	TXTFILES=$(wildcard $U/*.txt)
+
+fs.img: mkfs/mkfs README $(UPROGS) $(TXTFILES)
+	mkfs/mkfs fs.img README $(UPROGS) $(TXTFILES)
 
 -include kernel/*.d user/*.d
 

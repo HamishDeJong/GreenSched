@@ -5,6 +5,14 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "greensched.h"
+#include "energy_accounting.h"
+#include "idle_state.h"
+
+
+
+//struct green_idle_tracker green_idle; // for greensched
+int greenmode = 0;
 
 struct cpu cpus[NCPU];
 
@@ -25,6 +33,7 @@ extern char trampoline[]; // trampoline.S
 // memory model when using p->parent.
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
+
 
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
@@ -111,6 +120,9 @@ allocproc(void)
 {
   struct proc *p;
 
+  
+  
+
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -124,6 +136,9 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->waiting_tick = 0; // added for lab 4
+
+    green_stats_reset(p); // resets green stats after found
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -387,6 +402,9 @@ kwait(uint64 addr)
         havekids = 1;
         if(pp->state == ZOMBIE){
           // Found one.
+        
+         // printf("schedstats: pid=%d waiting_tick=%d\n",pp->pid, pp->waiting_tick);
+          //prints wait time for kid
           pid = pp->pid;
           if(addr != 0 && copyout(p->pagetable, addr, (char *)&pp->xstate,
                                   sizeof(pp->xstate)) < 0) {
@@ -421,46 +439,140 @@ kwait(uint64 addr)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+// void
+// scheduler(void)
+// {
+//   struct proc *p;
+//   struct cpu *c = mycpu();
+
+//   c->proc = 0;
+//   for(;;){
+//     // The most recent process to run may have had interrupts
+//     // turned off; enable them to avoid a deadlock if all
+//     // processes are waiting. Then turn them back off
+//     // to avoid a possible race between an interrupt
+//     // and wfi.
+//     intr_on();
+//     intr_off();
+//     struct proc *chosen = 0;
+//     int found = 0;
+//     for(p = proc; p < &proc[NPROC]; p++) {
+//       acquire(&p->lock);
+//       //custom policy for smallest PID child of schedtest
+//       if(p->state == RUNNABLE && p->parent != 0 && strncmp(p->parent->name, "schedtest", 8) == 0) {
+        
+//         if(chosen == 0 || p->pid < chosen->pid) {
+//           if(chosen)
+//             release(&chosen->lock);
+//           chosen = p;
+//           continue;
+//         }
+//       }
+//       release(&p->lock);
+//     }
+
+//  // Run chosen schedtest child
+//     if(chosen) {
+//       chosen->state = RUNNING;
+//       c->proc = chosen;
+//       swtch(&c->context, &chosen->context);
+//       c->proc = 0;
+//       found = 1;
+//       release(&chosen->lock);
+//     }
+
+//      //Fallback: normal scheduling
+//     if(!found) {
+//       for(p = proc; p < &proc[NPROC]; p++) {
+//         acquire(&p->lock);
+//         if(p->state == RUNNABLE) {
+//           p->state = RUNNING;
+//           c->proc = p;
+//           swtch(&c->context, &p->context);
+//           c->proc = 0;
+//           found = 1;
+//           release(&p->lock);
+//           break;
+//         }
+//         release(&p->lock);
+//       }
+//     }
+
+//   // Waiting time update
+//     for(p = proc; p < &proc[NPROC]; p++) {
+//       acquire(&p->lock);
+//       if(p != chosen && p->state == RUNNABLE)
+//         p->waiting_tick++;
+//       release(&p->lock);
+//     }
+    
+
+//     if(found == 0) {
+//       // nothing to run; stop running on this core until an interrupt.
+//       asm volatile("wfi");
+//     }
+//   }
+// }
+
+// new scheduler for greensched project
 void
 scheduler(void)
 {
-  struct proc *p;
   struct cpu *c = mycpu();
+  struct proc *p;
 
   c->proc = 0;
+
   for(;;){
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting. Then turn them back off
-    // to avoid a possible race between an interrupt
-    // and wfi.
     intr_on();
     intr_off();
 
-    int found = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+    extern uint ticks;
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
-      }
-      release(&p->lock);
+    // (Optional) decay CPU usage for all processes
+    for(p = proc; p < &proc[NPROC]; p++){
+      if(p->state != UNUSED)
+        green_stats_decay_recent_cpu(p, 1);
     }
-    if(found == 0) {
-      // nothing to run; stop running on this core until an interrupt.
+
+    // 🔹 Pick next process using your scheduler
+    struct proc *chosen = green_pick_next_process(greenmode);
+
+    // 🔹 If nothing runnable → idle
+    if(chosen == 0){
+      green_idle_enter(ticks);
       asm volatile("wfi");
+      continue;
     }
+
+    // 🔹 Leaving idle
+    green_idle_exit(ticks);
+
+    acquire(&chosen->lock);
+
+    if(chosen->state == RUNNABLE){
+
+      // 🔹 Mark running
+      chosen->state = RUNNING;
+      c->proc = chosen;
+
+      // 🔹 Stats tracking
+      green_stats_on_context_switch(chosen);
+      green_stats_on_run_tick(chosen);
+
+      // 🔹 Context switch
+      swtch(&c->context, &chosen->context);
+
+      // 🔹 Back from process
+      c->proc = 0;
+    }
+
+    release(&chosen->lock);
   }
 }
+
+
+
 
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
@@ -557,6 +669,7 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  green_stats_on_sleep_tick(p);
 
   sched();
 
@@ -580,6 +693,7 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
+        green_stats_on_wakeup(p);
       }
       release(&p->lock);
     }
@@ -688,3 +802,75 @@ procdump(void)
     printf("\n");
   }
 }
+
+
+
+int
+kps(char *arguments)
+ {
+  static char *states[] = {
+  [UNUSED]   = "UNUSED",
+  [USED]     = "USED",
+  [SLEEPING] = "SLEEP",
+  [RUNNABLE] = "RUNNABLE",
+  [RUNNING]  = "RUNNING",
+  [ZOMBIE]   = "ZOMBIE",
+};
+ // Declare a pointer to ‘struct proc’ for iterating over the process table
+ struct proc *p;
+ // Use strncmp(...) to check whether the ‘arguments’ (the parameter to this function) value is "-o"
+
+ if (strncmp(arguments, "-o", 2) == 0) {
+ /*
+ * Iterate over the global process table 'proc'
+ * (an array of ‘struct proc’).
+ * For each valid process, print only the process name.
+ */
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    if (p-> state == UNUSED)
+      continue;
+    printf("%s     ",p->name);
+  }
+  printf("\n");
+ } else if (strncmp(arguments, "-l", 2) == 0) {
+// Otherwise, check whether the argument value is "-l"
+ /*
+ * Iterate over the process table 'proc'.
+ * For each valid process, print:
+ * - process ID (pid)
+ * - process state
+ * - process name
+ */ 
+printf("PID     STATE    NAME\n");
+printf("=========================\n");
+ for(p = proc; p < &proc[NPROC]; p++){
+    if (p-> state == UNUSED)
+      continue;
+    printf("%d      %s      %s\n",p->pid,states[p->state],p->name);
+  }
+
+ }
+ // Handle invalid or missing arguments
+ else {
+ printf("Usage: ps [-o | -l]\n");
+ }
+
+ return 0;
+ }
+
+// function for cost greensched
+/* Lower cost means the process is a better fit for green scheduling. */
+ uint 
+green_candidate_cost(struct proc *p)
+{
+  if(p == 0 || p->state != RUNNABLE)
+    return 0xffffffff;
+
+  return p->recent_cpu * 5 +
+         p->wakeups * 3 +
+         p->context_switches * 2;
+}
+
+
+
