@@ -2,86 +2,83 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 
-
-
-
-
-
-int burst_ticks;
-// Dummy calculation function to simulate CPU burst
-void cpu_burst(int iterations) {
-    int start = uptime();        // ticks since boot
-    while (uptime() - start < iterations*10) {
-            // busy wait: burn CPU
-    }
+void
+cpu_burst(int ticks)
+{
+  int start = uptime();
+  while((uptime() - start) < ticks){
+    // busy wait
+  }
 }
 
-
-// void io_burst() {
-//     pause(0); // simulate I/O once per iteration
-// }
-
-void child_process(int child_id, int increasing) {
-    int burst_input, j;
-
-    if (increasing) {
-        burst_ticks = child_id * 10;
-    } else {
-        burst_ticks = (6 - child_id) * 10;
-    }
-
-    for (j = 0; j < 3; j++) {
-        burst_input = 1 + getpid();
-        cpu_burst(burst_input);
-       // io_burst();
-
-    }
+int
+compute_burst(int child_id, int increasing)
+{
+  if(increasing){
+    return child_id * 10;        // 10,20,30,40,50
+  } else {
+    return (6 - child_id) * 10;  // 50,40,30,20,10
+  }
 }
 
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        printf("Usage: schedtest [-inc | -dec]\n");
-        exit(1);
+void
+child_process(int child_id, int increasing)
+{
+  int burst_ticks = compute_burst(child_id, increasing);
+  int j;
+
+  for(j = 0; j < 3; j++){
+    cpu_burst(burst_ticks);
+  }
+
+  exit(0);
+}
+
+int
+main(int argc, char *argv[])
+{
+  int increasing;
+  int i;
+
+  if(argc != 2){
+    printf("Usage: schedtest [-inc | -dec]\n");
+    exit(1);
+  }
+
+  if(strcmp(argv[1], "-inc") == 0){
+    increasing = 1;
+  } else if(strcmp(argv[1], "-dec") == 0){
+    increasing = 0;
+  } else {
+    printf("Usage: schedtest [-inc | -dec]\n");
+    exit(1);
+  }
+
+  printf("schedtest: mode=%s\n", increasing ? "increasing" : "decreasing");
+
+  for(i = 0; i < 5; i++){
+    int child_id = i + 1;
+    int burst = compute_burst(child_id, increasing);
+    int pid = fork();
+
+    if(pid < 0){
+      printf("schedtest: fork failed\n");
+      exit(1);
     }
 
-    int increasing = 1;
-
-    if (strcmp(argv[1], "-dec") == 0) {
-        increasing = 0;
-    } else if (strcmp(argv[1], "-inc") == 0) {
-        increasing = 1;
+    if(pid == 0){
+      child_process(child_id, increasing);
     } else {
-        printf("Usage: schedtest [-inc | -dec]\n");
-        exit(1);
+      printf("Parent: Forked child %d with PID %d (burst=%d)\n",
+             child_id, pid, burst);
     }
+  }
 
-    int i;
-    
-    for (i = 0; i < 5; i++) {
-        int pid = fork();
-        
-        if (pid < 0) {
-            printf("Fork failed for child %d\n", i);
-            exit(1);
-        } else if (pid == 0) {
-            
-            child_process(i + 1, increasing);
-            exit(0);  
-        } else {
-            
-            printf("Parent: Forked child %d with PID %d\n", i + 1, pid);
-        }
-    }
-    
-    
-   
-    // waits for all chidren to finish
-    for (i = 0; i < 5; i++) {
-        wait(0);
-    }
+  for(i = 0; i < 5; i++){
+    int donepid = wait(0);
+    printf("Parent: Child PID %d completed\n", donepid);
+  }
 
-
-    
-    
-    exit(0);
+  printf("schedtest complete\n");
+  exit(0);
 }
