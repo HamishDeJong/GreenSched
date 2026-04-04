@@ -146,8 +146,8 @@ sys_sleep(void)
 
 
 
-// Global mode variable 
-int greenmode = 0;
+// Global mode variable
+extern int greenmode;
 
 // temp filler function
 uint64

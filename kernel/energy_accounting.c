@@ -1,9 +1,10 @@
 #include "types.h"
-#include "param.h"        // NCPU, NOFILE
-#include "memlayout.h"    // pagetable_t, pte_t
-#include "spinlock.h"     // struct spinlock
-#include "proc.h"         // struct proc
-#include "defs.h"         // helper functions
+#include "param.h"
+#include "memlayout.h"
+#include "riscv.h"
+#include "spinlock.h"
+#include "proc.h"
+#include "defs.h"
 #include "energy_accounting.h"
 
 // Helper to clamp recent CPU usage

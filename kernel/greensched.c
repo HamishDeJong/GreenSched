@@ -1,7 +1,13 @@
 #include "types.h"
-#include "proc.h"   // for struct proc
-#include "defs.h"   // for helper functions
+#include "param.h"
+#include "memlayout.h"
+#include "riscv.h"
+#include "spinlock.h"
+#include "proc.h"
+#include "defs.h"
 #include "greensched.h"
+
+extern struct proc proc[];
 /* Baseline scheduler selection logic for round-robin and green mode. */
 
 
