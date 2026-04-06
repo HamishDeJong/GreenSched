@@ -23,28 +23,49 @@ struct green_sched_candidate {
 
 
 
-/* Returns the PID of the next process to run, or -1 if none are runnable. */
+
 struct proc*
 green_pick_next_process(int mode)
 {
-  struct proc *p;
-  struct proc *best = 0;
-  uint best_cost = 0xffffffff;
+    static int last_rr_index = -1;
+    static int last_green_index = -1;
 
-  for(p = proc; p < &proc[NPROC]; p++){
-    if(p->state != RUNNABLE)
-      continue;
+    struct proc *p;
+    struct proc *best = 0;
+    uint best_cost = 0xffffffff;
+    int i;
 
-    if(mode == 0) // RR
-      return p;
+    if(mode == 0){  // RR
+        int start = (last_rr_index + 1) % NPROC;
 
-    uint cost = green_candidate_cost(p);
-
-    if(cost < best_cost){
-      best_cost = cost;
-      best = p;
+        for(i = 0; i < NPROC; i++){
+            int idx = (start + i) % NPROC;
+            if(proc[idx].state == RUNNABLE){
+                last_rr_index = idx;
+                return &proc[idx];
+            }
+        }
+        return 0;
     }
-  }
 
-  return best;
+    // Green mode with fairness
+    int start = (last_green_index + 1) % NPROC;
+
+    for(i = 0; i < NPROC; i++){
+        int idx = (start + i) % NPROC;
+        p = &proc[idx];
+
+        if(p->state != RUNNABLE)
+            continue;
+
+        uint cost = green_candidate_cost(p);
+
+        if(best == 0 || cost < best_cost){
+            best_cost = cost;
+            best = p;
+            last_green_index = idx;
+        }
+    }
+
+    return best;
 }

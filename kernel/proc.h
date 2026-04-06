@@ -80,6 +80,7 @@ struct trapframe {
 };
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+uint64 sys_setrecentcpu(void); 
 
 // Per-process state
 struct proc {

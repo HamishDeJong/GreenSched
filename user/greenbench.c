@@ -1,6 +1,8 @@
 #include "kernel/types.h"
 #include "user/user.h"
 
+
+
 /* xv6 benchmark utility for creating scheduler workload patterns. */
 
 enum workload_kind {
@@ -8,6 +10,14 @@ enum workload_kind {
   WORKLOAD_MIXED = 1,
   WORKLOAD_WAKEUP_HEAVY = 2
 };
+
+//int syscall(int num, ...);
+//wrapper
+// int
+// setrecentcpu(int pid, int value)
+// {
+//     return syscall(26, pid, value);  
+// }
 
 /* Burns CPU time without sleeping. */
 static void
@@ -183,23 +193,30 @@ main(int argc, char *argv[])
   for(i = 0; i < children; i++){
     int child_id = i + 1;
     int pid;
-    int my_rounds = child_rounds(base_rounds, child_id);
+    int my_rounds = child_rounds(base_rounds, child_id); 
 
     pid = fork();
 
     if(pid < 0){
-      fprintf(2, "greenbench: fork failed\n");
-      exit(1);
+        fprintf(2, "greenbench: fork failed\n");
+        exit(1);
     }
 
     if(pid == 0){
-      run_workload(workload, my_rounds);
-      exit(0);
+        // Child process: run workload
+        run_workload(workload, my_rounds);
+        exit(0);
     } else {
-      printf("greenbench: forked child %d with PID %d (rounds=%d)\n",
-             child_id, pid, my_rounds);
+        // Parent process: print info
+        printf("greenbench: forked child %d with PID %d (rounds=%d)\n",
+               child_id, pid, my_rounds);
+
+        // Pre-initialize recent_cpu for Green scheduler
+        // This syscall sets recent_cpu in kernel to reflect workload
+        // You need to implement sys_setrecentcpu(pid, rounds)
+        setrecentcpu(pid, my_rounds);
     }
-  }
+}
 
   for(i = 0; i < children; i++){
     int donepid = wait(0);
@@ -245,3 +262,5 @@ main(int argc, char *argv[])
   printf("greenbench: complete\n");
   exit(0);
 }
+
+

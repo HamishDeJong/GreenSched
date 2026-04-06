@@ -169,3 +169,25 @@ sys_getgreenmode(void)
 {
   return greenmode;
 }
+
+extern struct proc proc[NPROC];
+
+uint64
+sys_setrecentcpu(void)
+{
+    int pid, value;
+    argint(0, &pid);
+    argint(1, &value);
+
+    struct proc *p;
+    for(p = proc; p < &proc[NPROC]; p++){
+        if(p->pid == pid){
+            acquire(&p->lock);
+            p->recent_cpu = value;  // set workload proxy
+            release(&p->lock);
+            return 0;
+        }
+    }
+
+    return -1; // PID not found
+}

@@ -46,3 +46,4 @@ entry("kps");
 entry("sleep");
 entry("setgreenmode");
 entry("getgreenmode");
+entry("setrecentcpu");

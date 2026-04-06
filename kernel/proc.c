@@ -535,35 +535,37 @@ scheduler(void)
         green_stats_decay_recent_cpu(p, 1);
     }
 
-    // 🔹 Pick next process using your scheduler
+    //  Pick next process using your scheduler
     struct proc *chosen = green_pick_next_process(greenmode);
+  
+   
 
-    // 🔹 If nothing runnable → idle
+    //  If nothing runnable → idle
     if(chosen == 0){
       green_idle_enter(ticks);
       asm volatile("wfi");
       continue;
     }
 
-    // 🔹 Leaving idle
+    //  Leaving idle
     green_idle_exit(ticks);
 
     acquire(&chosen->lock);
 
     if(chosen->state == RUNNABLE){
 
-      // 🔹 Mark running
+      //  Mark running
       chosen->state = RUNNING;
       c->proc = chosen;
 
-      // 🔹 Stats tracking
+      //  Stats tracking
       green_stats_on_context_switch(chosen);
       green_stats_on_run_tick(chosen);
 
-      // 🔹 Context switch
+      //  Context switch
       swtch(&c->context, &chosen->context);
 
-      // 🔹 Back from process
+      //  Back from process
       c->proc = 0;
     }
 
@@ -871,6 +873,7 @@ green_candidate_cost(struct proc *p)
          p->wakeups * 3 +
          p->context_switches * 2;
 }
+
 
 
 

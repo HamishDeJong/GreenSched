@@ -27,6 +27,7 @@ int uptime(void);
 int sleep(int); // added sleep call
 int setgreenmode(int); // added for greensched
 int getgreenmode(void);
+int setrecentcpu(int pid, int value); // for green
 
 // ulib.c
 int stat(const char*, struct stat*);

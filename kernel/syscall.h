@@ -24,3 +24,4 @@
 #define SYS_sleep  23
 #define SYS_setgreenmode  24
 #define SYS_getgreenmode  25
+#define SYS_setrecentcpu  26
