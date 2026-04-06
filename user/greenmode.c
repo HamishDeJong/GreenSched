@@ -12,6 +12,7 @@ enum green_mode {
  * Expected xv6 syscalls:
  *   int getgreenmode(void);
  *   int setgreenmode(int mode);
+ *   int getgreenidle(struct green_idle_metrics *metrics);
  */
 int getgreenmode(void);
 int setgreenmode(int mode);
@@ -50,7 +51,7 @@ parse_mode(char *value, int *mode)
 static void
 print_usage(void)
 {
-  printf("usage: greenmode [get|rr|green]\n");
+  printf("usage: greenmode [get|rr|green|idle]\n");
 }
 
 /* Supports get, rr, and green commands. */
@@ -83,6 +84,19 @@ main(int argc, char *argv[])
     }
 
     printf("scheduler mode: %s\n", mode_name(mode));
+    exit(0);
+  }
+
+  if(strcmp(command, "idle") == 0){
+    struct green_idle_metrics metrics;
+
+    if(getgreenidle(&metrics) < 0){
+      fprintf(2, "greenmode: getgreenidle failed\n");
+      exit(1);
+    }
+
+    printf("idle ticks: %d\n", metrics.idle_ticks);
+    printf("idle entries: %d\n", metrics.idle_entries);
     exit(0);
   }
 

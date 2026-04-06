@@ -60,6 +60,7 @@ procinit(void)
   
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
+  green_idle_reset();
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
       p->state = UNUSED;
@@ -519,21 +520,12 @@ void
 scheduler(void)
 {
   struct cpu *c = mycpu();
-  struct proc *p;
 
   c->proc = 0;
 
   for(;;){
     intr_on();
     intr_off();
-
-    extern uint ticks;
-
-    // (Optional) decay CPU usage for all processes
-    for(p = proc; p < &proc[NPROC]; p++){
-      if(p->state != UNUSED)
-        green_stats_decay_recent_cpu(p, 1);
-    }
 
     //  Pick next process using your scheduler
     struct proc *chosen = green_pick_next_process(greenmode);
@@ -542,12 +534,14 @@ scheduler(void)
 
     //  If nothing runnable → idle
     if(chosen == 0){
+      extern uint ticks;
       green_idle_enter(ticks);
       asm volatile("wfi");
       continue;
     }
 
     //  Leaving idle
+    extern uint ticks;
     green_idle_exit(ticks);
 
     acquire(&chosen->lock);
@@ -560,7 +554,6 @@ scheduler(void)
 
       //  Stats tracking
       green_stats_on_context_switch(chosen);
-      green_stats_on_run_tick(chosen);
 
       //  Context switch
       swtch(&c->context, &chosen->context);
@@ -863,17 +856,11 @@ printf("=========================\n");
 
 // function for cost greensched
 /* Lower cost means the process is a better fit for green scheduling. */
- uint 
-green_candidate_cost(struct proc *p)
+uint 
+green_candidate_cost(struct proc *p, int mode)
 {
   if(p == 0 || p->state != RUNNABLE)
     return 0xffffffff;
 
-  return p->recent_cpu * 5 +
-         p->wakeups * 3 +
-         p->context_switches * 2;
+  return green_compute_energy_score(p, mode);
 }
-
-
-
-

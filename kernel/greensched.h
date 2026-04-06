@@ -6,7 +6,8 @@
 
 // Function declarations
 struct proc* green_pick_next_process(int mode);
-uint green_candidate_cost(struct proc *p);
+uint green_candidate_cost(struct proc *p, int mode);
+int green_should_preempt(struct proc *p, int mode);
 
 // You can also declare the other green_* functions if needed
 void green_stats_reset(struct proc *p);

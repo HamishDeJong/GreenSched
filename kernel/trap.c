@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "greensched.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -15,6 +16,7 @@ extern char trampoline[], uservec[];
 void kernelvec();
 
 extern int devintr();
+extern int greenmode;
 
 void
 trapinit(void)
@@ -81,8 +83,11 @@ usertrap(void)
     kexit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
+  if(which_dev == 2){
+    green_stats_on_run_tick(p);
+    if(green_should_preempt(p, greenmode))
+      yield();
+  }
 
   prepare_return();
 
@@ -152,8 +157,11 @@ kerneltrap()
   }
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0)
-    yield();
+  if(which_dev == 2 && myproc() != 0){
+    green_stats_on_run_tick(myproc());
+    if(green_should_preempt(myproc(), greenmode))
+      yield();
+  }
 
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
@@ -216,4 +224,3 @@ devintr()
     return 0;
   }
 }
-

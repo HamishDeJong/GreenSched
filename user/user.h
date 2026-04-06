@@ -28,6 +28,14 @@ int sleep(int); // added sleep call
 int setgreenmode(int); // added for greensched
 int getgreenmode(void);
 int setrecentcpu(int pid, int value); // for green
+struct green_idle_metrics;
+int getgreenidle(struct green_idle_metrics *metrics);
+
+struct green_idle_metrics {
+  uint idle_ticks;
+  uint idle_entries;
+  int in_idle;
+};
 
 // ulib.c
 int stat(const char*, struct stat*);

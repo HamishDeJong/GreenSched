@@ -106,6 +106,7 @@ extern uint64 sys_sleep(void);
 extern uint64 sys_setgreenmode(void);
 extern uint64 sys_getgreenmode(void);
 extern uint64 sys_setrecentcpu(void);
+extern uint64 sys_getgreenidle(void);
 
 
 // An array mapping syscall numbers from syscall.h
@@ -137,6 +138,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_setgreenmode] = sys_setgreenmode,
   [SYS_getgreenmode] = sys_getgreenmode,
   [SYS_setrecentcpu] = sys_setrecentcpu,
+  [SYS_getgreenidle] = sys_getgreenidle,
 };
 
 void

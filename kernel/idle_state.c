@@ -62,3 +62,14 @@ green_idle_on_tick(void)
 
   green_idle.idle_ticks += 1;
 }
+
+void
+green_idle_snapshot(uint *idle_ticks, uint *idle_entries, int *in_idle)
+{
+  if(idle_ticks)
+    *idle_ticks = green_idle.idle_ticks;
+  if(idle_entries)
+    *idle_entries = green_idle.idle_entries;
+  if(in_idle)
+    *in_idle = green_idle.in_idle;
+}

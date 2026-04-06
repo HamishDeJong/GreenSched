@@ -99,6 +99,7 @@ struct proc {
   uint cpu_ticks;
   uint sleep_ticks;
   uint energy_score;
+  uint green_run_streak;
 
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process

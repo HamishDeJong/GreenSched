@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 #include "greensched.h"
+#include "energy_accounting.h"
 
 extern struct proc proc[];
 /* Baseline scheduler selection logic for round-robin and green mode. */
@@ -58,14 +59,47 @@ green_pick_next_process(int mode)
         if(p->state != RUNNABLE)
             continue;
 
-        uint cost = green_candidate_cost(p);
+        uint cost = green_candidate_cost(p, mode);
 
         if(best == 0 || cost < best_cost){
             best_cost = cost;
             best = p;
             last_green_index = idx;
+            continue;
+        }
+
+        if(cost == best_cost){
+            if(p->wakeups < best->wakeups ||
+               (p->wakeups == best->wakeups &&
+                (p->context_switches < best->context_switches ||
+                 (p->context_switches == best->context_switches &&
+                  (p->recent_cpu < best->recent_cpu ||
+                   (p->recent_cpu == best->recent_cpu &&
+                    p->pid < best->pid)))))){
+                best = p;
+                last_green_index = idx;
+            }
         }
     }
 
     return best;
+}
+
+int
+green_should_preempt(struct proc *p, int mode)
+{
+    uint score;
+
+    if(mode == ENERGY_MODE_RR || p == 0)
+        return 1;
+
+    score = green_compute_energy_score(p, mode);
+
+    if(p->green_run_streak >= 3)
+        return 1;
+
+    if(score <= 20)
+        return 0;
+
+    return 1;
 }

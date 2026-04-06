@@ -47,3 +47,4 @@ entry("sleep");
 entry("setgreenmode");
 entry("getgreenmode");
 entry("setrecentcpu");
+entry("getgreenidle");

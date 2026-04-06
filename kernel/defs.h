@@ -186,3 +186,5 @@ void            virtio_disk_intr(void);
 
 // added for lab 2
 int kps(char *arguments);
+void            green_idle_reset(void);
+void            green_idle_snapshot(uint *idle_ticks, uint *idle_entries, int *in_idle);

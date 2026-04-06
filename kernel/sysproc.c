@@ -7,6 +7,12 @@
 #include "proc.h"
 #include "vm.h"
 
+struct green_idle_metrics {
+  uint idle_ticks;
+  uint idle_entries;
+  int in_idle;
+};
+
 uint64
 sys_exit(void)
 {
@@ -190,4 +196,22 @@ sys_setrecentcpu(void)
     }
 
     return -1; // PID not found
+}
+
+uint64
+sys_getgreenidle(void)
+{
+  uint64 addr;
+  struct proc *p;
+  struct green_idle_metrics metrics;
+
+  argaddr(0, &addr);
+  p = myproc();
+
+  green_idle_snapshot(&metrics.idle_ticks, &metrics.idle_entries, &metrics.in_idle);
+
+  if(copyout(p->pagetable, addr, (char *)&metrics, sizeof(metrics)) < 0)
+    return -1;
+
+  return 0;
 }

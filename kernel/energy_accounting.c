@@ -21,6 +21,7 @@ void green_stats_reset(struct proc *p) {
     p->context_switches = 0;
     p->recent_cpu = 0;
     p->energy_score = 0;
+    p->green_run_streak = 0;
 }
 
 // Called when process runs for one tick
@@ -28,18 +29,23 @@ void green_stats_on_run_tick(struct proc *p) {
     if (!p) return;
     p->cpu_ticks += 1;
     p->recent_cpu += 1;
+    p->green_run_streak += 1;
 }
 
 // Called when process sleeps for one tick
 void green_stats_on_sleep_tick(struct proc *p) {
     if (!p) return;
     p->sleep_ticks += 1;
+    p->green_run_streak = 0;
+    green_stats_decay_recent_cpu(p, 2);
 }
 
 // Called on wakeup
 void green_stats_on_wakeup(struct proc *p) {
     if (!p) return;
     p->wakeups += 1;
+    p->green_run_streak = 0;
+    p->recent_cpu = p->recent_cpu / 2;
 }
 
 // Called on context switch
@@ -62,14 +68,26 @@ void green_stats_decay_recent_cpu(struct proc *p, uint decay_step) {
 uint green_compute_energy_score(struct proc *p, int mode) {
     if (!p) return 0;
 
-    uint wakeup_cost = (mode == ENERGY_MODE_ENERGY) ? 4 : 3;
-    uint switch_cost = (mode == ENERGY_MODE_ENERGY) ? 3 : 2;
+    uint wakeup_cost = (mode == ENERGY_MODE_ENERGY) ? 8 : 3;
+    uint switch_cost = (mode == ENERGY_MODE_ENERGY) ? 6 : 2;
+    uint sleep_credit = 0;
+    uint score;
 
-    p->energy_score =
-        p->cpu_ticks * 5 +
+    score =
+        clamp_window(p->cpu_ticks, 40) * 2 +
         p->wakeups * wakeup_cost +
         p->context_switches * switch_cost +
-        clamp_window(p->recent_cpu, 100);
+        clamp_window(p->recent_cpu, 40) * 6 +
+        clamp_window(p->green_run_streak, 4) * 5;
 
+    if(mode == ENERGY_MODE_ENERGY){
+        sleep_credit = clamp_window(p->sleep_ticks, 40) * 5;
+        if(sleep_credit >= score)
+            score = 0;
+        else
+            score -= sleep_credit;
+    }
+
+    p->energy_score = score;
     return p->energy_score;
 }
