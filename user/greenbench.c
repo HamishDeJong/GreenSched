@@ -230,6 +230,18 @@ print_usage(char *program)
   printf("usage: %s [cpu_bound|mixed|wakeup] [children] [rounds]\n", program);
 }
 
+/* Print a live kernel snapshot while benchmark children are still running. */
+static void
+print_live_green_stats(int workload)
+{
+  if(workload == WORKLOAD_CPU_BOUND)
+    return;
+
+  sleep(10);
+  printf("greenbench: live GreenSched snapshot via ps -g\n");
+  kps("-g");
+}
+
 /* Forks child processes to generate benchmark load inside xv6. */
 int
 main(int argc, char *argv[])
@@ -381,6 +393,8 @@ main(int argc, char *argv[])
           setrecentcpu(pid, my_rounds);
     }
 }
+
+  print_live_green_stats(workload);
 
   for(i = 0; i < children; i++){
     int donepid = wait(0);

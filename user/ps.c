@@ -12,7 +12,7 @@ void kpsCaller(int argc, char *argv[]){
     char *arg;     
 
     if(argc < 2){
-        printf("Usage: ps -o | -l\n");
+        printf("Usage: ps -o | -l | -g\n");
         printf("Enter a kps command: ");
     
 
@@ -44,8 +44,6 @@ void kpsCaller(int argc, char *argv[]){
 }
 
 int main(int argc, char *argv[]){
-    printf("+++ Start lab 2 +++\n");
     kpsCaller(argc, argv);
-    printf("+++ End lab 2 +++\n");
     exit(0);
 }

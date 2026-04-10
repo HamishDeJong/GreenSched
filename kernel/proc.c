@@ -840,16 +840,38 @@ kps(char *arguments)
 printf("PID     STATE    NAME\n");
 printf("=========================\n");
  for(p = proc; p < &proc[NPROC]; p++){
-    if (p-> state == UNUSED)
+     if (p-> state == UNUSED)
+       continue;
+     printf("%d      %s      %s\n",p->pid,states[p->state],p->name);
+   }
+
+ } else if (strncmp(arguments, "-g", 2) == 0) {
+ printf("PID   STATE      NAME         CPU   SLEEP WAKE  CSW   RECENT SCORE\n");
+ printf("=================================================================\n");
+  for(p = proc; p < &proc[NPROC]; p++){
+    if(p->state == UNUSED)
       continue;
-    printf("%d      %s      %s\n",p->pid,states[p->state],p->name);
+    printf("%d   %s   %s   %d   %d   %d   %d   %d   ",
+           p->pid,
+           states[p->state],
+           p->name,
+           p->cpu_ticks,
+           p->sleep_ticks,
+           p->wakeups,
+           p->context_switches,
+           p->recent_cpu);
+
+    if(p->state == RUNNABLE)
+      printf("%d\n", green_candidate_cost(p, greenmode));
+    else
+      printf("-\n");
   }
 
  }
  // Handle invalid or missing arguments
  else {
- printf("Usage: ps [-o | -l]\n");
- }
+ printf("Usage: ps [-o | -l | -g]\n");
+  }
 
  return 0;
  }
